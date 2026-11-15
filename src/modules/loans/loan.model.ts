@@ -40,9 +40,8 @@ const loanSchema = new Schema(
       required: true,
       min: 1,
       validate: {
-        validator: (value: number) =>
-          Number.isSafeInteger(value),
-        message: "Principal must be a safe integer",
+        validator: Number.isSafeInteger,
+        message: "El capital inicial debe ser un entero seguro.",
       },
     },
 
@@ -51,9 +50,8 @@ const loanSchema = new Schema(
       required: true,
       min: 0,
       validate: {
-        validator: (value: number) =>
-          Number.isSafeInteger(value),
-        message: "Outstanding principal must be a safe integer",
+        validator: Number.isSafeInteger,
+        message: "El capital pendiente debe ser un entero seguro.",
       },
     },
 
@@ -66,6 +64,7 @@ const loanSchema = new Schema(
 
     interestRate: {
       type: String,
+      required: true,
       default: "0",
       match: /^\d+(\.\d+)?$/,
     },
@@ -83,12 +82,12 @@ const loanSchema = new Schema(
     accountId: {
       type: Schema.Types.ObjectId,
       ref: "Account",
-      default: null,
+      required: true,
     },
 
     status: {
       type: String,
-      enum: ["active", "paid", "overdue", "cancelled"],
+      enum: ["active", "paid", "cancelled"],
       default: "active",
       required: true,
     },
@@ -110,17 +109,59 @@ const loanSchema = new Schema(
     timestamps: true,
     versionKey: false,
     collection: "loans",
-  },
+  }
 );
 
+// El capital pendiente nunca puede superar el capital inicial.
+loanSchema.pre("validate", function () {
+  if (
+    Number.isSafeInteger(this.principalMinor) &&
+    Number.isSafeInteger(this.outstandingPrincipalMinor) &&
+    this.outstandingPrincipalMinor > this.principalMinor
+  ) {
+    this.invalidate(
+      "outstandingPrincipalMinor",
+      "El capital pendiente no puede superar el capital inicial."
+    );
+  }
+
+  if (
+    this.dueDate &&
+    this.dueDate < this.startDate
+  ) {
+    this.invalidate(
+      "dueDate",
+      "La fecha de vencimiento no puede ser anterior a la fecha de inicio."
+    );
+  }
+
+  if (
+    this.status === "paid" &&
+    this.outstandingPrincipalMinor !== 0
+  ) {
+    this.invalidate(
+      "status",
+      "Un préstamo pagado debe tener capital pendiente igual a cero."
+    );
+  }
+});
+
+// Consultar préstamos por estado.
 loanSchema.index({
   workspaceId: 1,
   status: 1,
 });
 
+// Consultar préstamos por tipo.
 loanSchema.index({
   workspaceId: 1,
   type: 1,
+});
+
+// Consultar préstamos asociados a una cuenta.
+loanSchema.index({
+  workspaceId: 1,
+  accountId: 1,
 });
 
 export type Loan = InferSchemaType<typeof loanSchema>;
