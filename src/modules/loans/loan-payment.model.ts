@@ -1,5 +1,5 @@
 
-import mongoose, {
+import {
   InferSchemaType,
   Schema,
   Types,
@@ -7,13 +7,49 @@ import mongoose, {
   models,
 } from "mongoose";
 
+const loanPaymentAllocationSchema = new Schema(
+  {
+    scheduleId: {
+      type: Schema.Types.ObjectId,
+      ref: "LoanSchedule",
+      required: true,
+    },
+
+    principalMinor: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+      validate: Number.isSafeInteger,
+    },
+
+    interestMinor: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+      validate: Number.isSafeInteger,
+    },
+
+    otherChargesMinor: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+      validate: Number.isSafeInteger,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const loanPaymentSchema = new Schema(
   {
     workspaceId: {
       type: Schema.Types.ObjectId,
       ref: "Workspace",
       required: true,
-      index: true,
     },
 
     loanId: {
@@ -29,36 +65,13 @@ const loanPaymentSchema = new Schema(
       unique: true,
     },
 
-    principalMinor: {
-      type: Number,
+    allocations: {
+      type: [loanPaymentAllocationSchema],
       required: true,
-      min: 0,
-      default: 0,
       validate: {
-        validator: Number.isSafeInteger,
-        message: "El abono a capital debe ser un entero seguro.",
-      },
-    },
-
-    interestMinor: {
-      type: Number,
-      required: true,
-      min: 0,
-      default: 0,
-      validate: {
-        validator: Number.isSafeInteger,
-        message: "Los intereses deben ser un entero seguro.",
-      },
-    },
-
-    otherChargesMinor: {
-      type: Number,
-      required: true,
-      min: 0,
-      default: 0,
-      validate: {
-        validator: Number.isSafeInteger,
-        message: "Los otros cargos deben ser enteros seguros.",
+        validator: (allocations: unknown[]) =>
+          Array.isArray(allocations) && allocations.length > 0,
+        message: "El pago debe tener al menos una asignación.",
       },
     },
 
@@ -76,25 +89,40 @@ const loanPaymentSchema = new Schema(
   {
     timestamps: true,
     versionKey: false,
+    collection: "loanPayments",
   }
 );
 
-// Al menos uno de los conceptos debe tener un valor mayor que cero.
 loanPaymentSchema.pre("validate", function () {
-  const total =
-    this.principalMinor +
-    this.interestMinor +
-    this.otherChargesMinor;
+  if (!this.allocations?.length) return;
 
-  if (total <= 0) {
+  const scheduleIds = this.allocations.map((allocation) =>
+    allocation.scheduleId.toString()
+  );
+
+  if (new Set(scheduleIds).size !== scheduleIds.length) {
     this.invalidate(
-      "principalMinor",
-      "El pago debe contener al menos un concepto mayor que cero."
+      "allocations",
+      "No puedes asignar dos veces el mismo pago a una cuota."
     );
+  }
+
+  for (const allocation of this.allocations) {
+    const total =
+      allocation.principalMinor +
+      allocation.interestMinor +
+      allocation.otherChargesMinor;
+
+    if (!Number.isSafeInteger(total) || total <= 0) {
+      this.invalidate(
+        "allocations",
+        "Cada asignación debe tener un importe válido mayor que cero."
+      );
+      break;
+    }
   }
 });
 
-// Índices para consultas e historial de pagos.
 loanPaymentSchema.index({
   workspaceId: 1,
   loanId: 1,
@@ -103,7 +131,7 @@ loanPaymentSchema.index({
 
 loanPaymentSchema.index({
   workspaceId: 1,
-  createdBy: 1,
+  "allocations.scheduleId": 1,
 });
 
 export type LoanPaymentDocument = InferSchemaType<
@@ -115,7 +143,7 @@ export type LoanPayment = LoanPaymentDocument & {
 };
 
 const LoanPaymentModel =
-  models.LoanPayment ||
+  models.LoanPayment ??
   model("LoanPayment", loanPaymentSchema);
 
 export default LoanPaymentModel;

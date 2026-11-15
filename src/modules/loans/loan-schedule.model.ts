@@ -1,5 +1,5 @@
 
-import mongoose, {
+import {
   InferSchemaType,
   Schema,
   Types,
@@ -41,7 +41,10 @@ const loanScheduleSchema = new Schema(
       required: true,
       min: 0,
       default: 0,
-      validate: Number.isSafeInteger,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: "El capital debe ser un entero seguro.",
+      },
     },
 
     interestMinor: {
@@ -49,7 +52,10 @@ const loanScheduleSchema = new Schema(
       required: true,
       min: 0,
       default: 0,
-      validate: Number.isSafeInteger,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: "Los intereses deben ser un entero seguro.",
+      },
     },
 
     otherChargesMinor: {
@@ -57,26 +63,17 @@ const loanScheduleSchema = new Schema(
       required: true,
       min: 0,
       default: 0,
-      validate: Number.isSafeInteger,
-    },
-
-    status: {
-      type: String,
-      enum: [
-        "pending",
-        "partially_paid",
-        "paid",
-        "overdue",
-        "cancelled",
-      ],
-      default: "pending",
-      required: true,
+      validate: {
+        validator: Number.isSafeInteger,
+        message: "Los cargos deben ser enteros seguros.",
+      },
     },
 
     notes: {
       type: String,
       trim: true,
       maxlength: 500,
+      default: null,
     },
 
     createdBy: {
@@ -88,10 +85,26 @@ const loanScheduleSchema = new Schema(
   {
     timestamps: true,
     versionKey: false,
+    collection: "loanSchedules",
   }
 );
 
-// Evita cuotas duplicadas dentro del mismo préstamo.
+// Una cuota debe tener al menos un importe programado.
+loanScheduleSchema.pre("validate", function () {
+  const total =
+    this.principalMinor +
+    this.interestMinor +
+    this.otherChargesMinor;
+
+  if (!Number.isSafeInteger(total) || total <= 0) {
+    this.invalidate(
+      "principalMinor",
+      "La cuota debe tener un importe programado mayor que cero."
+    );
+  }
+});
+
+// Evita números de cuota duplicados dentro del préstamo.
 loanScheduleSchema.index(
   {
     workspaceId: 1,
@@ -103,14 +116,13 @@ loanScheduleSchema.index(
   }
 );
 
-// Consultas del calendario de vencimientos.
+// Consultar vencimientos de un workspace.
 loanScheduleSchema.index({
   workspaceId: 1,
   dueDate: 1,
-  status: 1,
 });
 
-// Consulta del cronograma de un préstamo.
+// Consultar cronograma de un préstamo.
 loanScheduleSchema.index({
   loanId: 1,
   dueDate: 1,
@@ -125,7 +137,7 @@ export type LoanSchedule = LoanScheduleDocument & {
 };
 
 const LoanScheduleModel =
-  models.LoanSchedule ||
+  models.LoanSchedule ??
   model("LoanSchedule", loanScheduleSchema);
 
 export default LoanScheduleModel;
