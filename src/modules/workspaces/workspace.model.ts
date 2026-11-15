@@ -4,13 +4,13 @@ import {
   Schema,
   model,
   models,
-  Types,
 } from "mongoose";
 
 const workspaceSettingsSchema = new Schema(
   {
     timezone: {
       type: String,
+      required: true,
       default: "America/Bogota",
     },
 
@@ -21,7 +21,7 @@ const workspaceSettingsSchema = new Schema(
   },
   {
     _id: false,
-  },
+  }
 );
 
 const workspaceSchema = new Schema(
@@ -64,11 +64,27 @@ const workspaceSchema = new Schema(
     timestamps: true,
     versionKey: false,
     collection: "workspaces",
-  },
+  }
 );
 
-workspaceSchema.index({ createdBy: 1 });
-workspaceSchema.index({ type: 1 });
+// Consultar workspaces creados por un usuario.
+workspaceSchema.index({
+  createdBy: 1,
+});
+
+// Garantizar un único workspace personal por usuario.
+workspaceSchema.index(
+  {
+    createdBy: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: "personal",
+    },
+    name: "unique_personal_workspace_per_user",
+  }
+);
 
 export type Workspace = InferSchemaType<
   typeof workspaceSchema
