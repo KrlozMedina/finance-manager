@@ -21,13 +21,13 @@ const transactionSplitSchema = new Schema(
       validate: {
         validator: (value: number) =>
           Number.isSafeInteger(value),
-        message: "Split amount must be a safe integer",
+        message: "El importe de la categoría debe ser un entero seguro.",
       },
     },
   },
   {
     _id: false,
-  },
+  }
 );
 
 const transactionExchangeSchema = new Schema(
@@ -59,13 +59,13 @@ const transactionExchangeSchema = new Schema(
       validate: {
         validator: (value: number) =>
           Number.isSafeInteger(value),
-        message: "Converted amount must be a safe integer",
+        message: "El importe convertido debe ser un entero seguro.",
       },
     },
   },
   {
     _id: false,
-  },
+  }
 );
 
 const transactionSchema = new Schema(
@@ -111,7 +111,7 @@ const transactionSchema = new Schema(
       validate: {
         validator: (value: number) =>
           Number.isSafeInteger(value),
-        message: "Amount must be a safe integer",
+        message: "El importe debe ser un entero seguro.",
       },
     },
 
@@ -135,6 +135,13 @@ const transactionSchema = new Schema(
 
     exchange: {
       type: transactionExchangeSchema,
+      default: null,
+    },
+
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      maxlength: 128,
       default: null,
     },
 
@@ -162,25 +169,83 @@ const transactionSchema = new Schema(
     timestamps: true,
     versionKey: false,
     collection: "transactions",
-  },
+  }
 );
 
+// Validaciones de integridad de la operación.
+transactionSchema.pre("validate", function () {
+  if (this.splits.length > 0) {
+    const splitTotal = this.splits.reduce(
+      (total, split) => total + split.amountMinor,
+      0
+    );
+
+    if (
+      !Number.isSafeInteger(splitTotal) ||
+      splitTotal !== this.amountMinor
+    ) {
+      this.invalidate(
+        "splits",
+        "La suma de las categorías debe coincidir con el importe total."
+      );
+    }
+  }
+
+  if (this.exchange) {
+    if (
+      this.exchange.fromCurrency ===
+      this.exchange.toCurrency
+    ) {
+      this.invalidate(
+        "exchange",
+        "Las monedas de origen y destino deben ser diferentes."
+      );
+    }
+
+    const rate = Number(this.exchange.rate);
+
+    if (!Number.isFinite(rate) || rate <= 0) {
+      this.invalidate(
+        "exchange.rate",
+        "La tasa de cambio debe ser mayor que cero."
+      );
+    }
+  }
+});
+
+// Historial de transacciones.
 transactionSchema.index({
   workspaceId: 1,
   date: -1,
 });
 
+// Filtrar por tipo y estado.
 transactionSchema.index({
   workspaceId: 1,
   type: 1,
   status: 1,
 });
 
+// Consultar movimientos por categoría.
 transactionSchema.index({
   workspaceId: 1,
   categoryId: 1,
   date: -1,
 });
+
+// Evitar solicitudes duplicadas dentro del workspace.
+transactionSchema.index(
+  {
+    workspaceId: 1,
+    idempotencyKey: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      idempotencyKey: { $type: "string" },
+    },
+  }
+);
 
 export type Transaction = InferSchemaType<
   typeof transactionSchema
