@@ -17,12 +17,18 @@ const ledgerEntrySchema = new Schema(
     transactionId: {
       type: Schema.Types.ObjectId,
       ref: "Transaction",
-      required: true,
+      default: null,
     },
 
     accountId: {
       type: Schema.Types.ObjectId,
       ref: "Account",
+      required: true,
+    },
+
+    type: {
+      type: String,
+      enum: ["opening", "transaction", "adjustment", "reversal"],
       required: true,
     },
 
@@ -32,7 +38,7 @@ const ledgerEntrySchema = new Schema(
       validate: {
         validator: (value: number) =>
           Number.isSafeInteger(value) && value !== 0,
-        message: "Amount must be a non-zero safe integer",
+        message: "El importe debe ser un entero seguro distinto de cero.",
       },
     },
 
@@ -64,26 +70,79 @@ const ledgerEntrySchema = new Schema(
     timestamps: true,
     versionKey: false,
     collection: "ledgerEntries",
-  },
+  }
 );
 
-// Consultar movimientos de una cuenta por fecha.
+// Validaciones de coherencia según el tipo de entrada.
+ledgerEntrySchema.pre("validate", function () {
+  if (this.type === "opening") {
+    if (this.transactionId || this.reversalOf) {
+      this.invalidate(
+        "type",
+        "Una entrada de apertura no puede tener transacción ni reverso."
+      );
+    }
+  }
+
+  if (
+    ["transaction", "adjustment"].includes(this.type) &&
+    (!this.transactionId || this.reversalOf)
+  ) {
+    this.invalidate(
+      "transactionId",
+      "Esta entrada requiere una transacción y no puede ser un reverso."
+    );
+  }
+
+  if (this.type === "reversal") {
+    if (!this.transactionId || !this.reversalOf) {
+      this.invalidate(
+        "reversalOf",
+        "Un reverso requiere una transacción y una entrada original."
+      );
+    }
+  }
+});
+
+// Historial de movimientos por cuenta.
 ledgerEntrySchema.index({
   accountId: 1,
   effectiveAt: -1,
 });
 
-// Consultar todos los movimientos de una transacción.
+// Movimientos de una transacción.
 ledgerEntrySchema.index({
   transactionId: 1,
 });
 
-// Consultar movimientos de una cuenta dentro de un workspace.
+// Movimientos por workspace, cuenta y fecha.
 ledgerEntrySchema.index({
   workspaceId: 1,
   accountId: 1,
   effectiveAt: -1,
 });
+
+// Una cuenta solo puede tener una entrada de apertura.
+ledgerEntrySchema.index(
+  { accountId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: "opening",
+    },
+  }
+);
+
+// Una entrada original solo puede tener un reverso completo.
+ledgerEntrySchema.index(
+  { reversalOf: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: "reversal",
+    },
+  }
+);
 
 export type LedgerEntry = InferSchemaType<
   typeof ledgerEntrySchema
