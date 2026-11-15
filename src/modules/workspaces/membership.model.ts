@@ -43,22 +43,65 @@ const membershipSchema = new Schema(
     timestamps: true,
     versionKey: false,
     collection: "memberships",
-  },
+  }
 );
+
+// Validar coherencia entre estado y fecha de ingreso.
+membershipSchema.pre("validate", function () {
+  if (this.status === "active" && !this.joinedAt) {
+    this.invalidate(
+      "joinedAt",
+      "Una membresía activa debe tener fecha de ingreso."
+    );
+  }
+
+  if (this.status === "invited" && this.joinedAt) {
+    this.invalidate(
+      "joinedAt",
+      "Una invitación pendiente no debe tener fecha de ingreso."
+    );
+  }
+
+  if (this.role === "OWNER" && this.status !== "active") {
+    this.invalidate(
+      "status",
+      "El propietario debe tener una membresía activa."
+    );
+  }
+});
 
 // Un usuario solo puede tener una membresía por workspace.
 membershipSchema.index(
-  { workspaceId: 1, userId: 1 },
-  { unique: true },
+  {
+    workspaceId: 1,
+    userId: 1,
+  },
+  {
+    unique: true,
+  }
 );
 
-// Consultas de miembros activos de un workspace.
+// Cada workspace puede tener como máximo un propietario.
+membershipSchema.index(
+  {
+    workspaceId: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      role: "OWNER",
+    },
+    name: "unique_workspace_owner",
+  }
+);
+
+// Consultar miembros de un workspace por estado.
 membershipSchema.index({
   workspaceId: 1,
   status: 1,
 });
 
-// Consultar los workspaces de un usuario.
+// Consultar workspaces de un usuario.
 membershipSchema.index({
   userId: 1,
   status: 1,
