@@ -18,6 +18,11 @@ const accountDetailsSchema = new Schema(
       type: Number,
       min: 0,
       default: null,
+      validate: {
+        validator: (value: number | null) =>
+          value === null || Number.isSafeInteger(value),
+        message: "El límite de crédito debe ser un entero seguro.",
+      },
     },
 
     cutoffDay: {
@@ -25,6 +30,7 @@ const accountDetailsSchema = new Schema(
       min: 1,
       max: 31,
       default: null,
+      validate: Number.isSafeInteger,
     },
 
     paymentDay: {
@@ -32,11 +38,12 @@ const accountDetailsSchema = new Schema(
       min: 1,
       max: 31,
       default: null,
+      validate: Number.isSafeInteger,
     },
   },
   {
     _id: false,
-  },
+  }
 );
 
 const accountSchema = new Schema(
@@ -45,7 +52,6 @@ const accountSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Workspace",
       required: true,
-      index: true,
     },
 
     name: {
@@ -89,10 +95,11 @@ const accountSchema = new Schema(
       type: Number,
       required: true,
       default: 0,
+      min: 0,
       validate: {
         validator: (value: number) =>
           Number.isSafeInteger(value),
-        message: "Initial balance must be a safe integer",
+        message: "El saldo inicial debe ser un entero seguro.",
       },
     },
 
@@ -131,23 +138,28 @@ const accountSchema = new Schema(
     timestamps: true,
     versionKey: false,
     collection: "accounts",
-  },
+  }
 );
 
+// Consultar cuentas activas o archivadas.
 accountSchema.index({
   workspaceId: 1,
   status: 1,
 });
 
+// Filtrar cuentas por tipo.
 accountSchema.index({
   workspaceId: 1,
   type: 1,
 });
 
-export type Account = InferSchemaType<
-  typeof accountSchema
->;
+// Consultar cuentas de un usuario creador.
+accountSchema.index({
+  workspaceId: 1,
+  createdBy: 1,
+});
+
+export type Account = InferSchemaType<typeof accountSchema>;
 
 export const AccountModel =
-  models.Account ??
-  model("Account", accountSchema);
+  models.Account ?? model("Account", accountSchema);
