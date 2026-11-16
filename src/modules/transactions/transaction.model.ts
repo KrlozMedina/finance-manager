@@ -189,7 +189,29 @@ const transactionSchema = new Schema(
 );
 
 // Validaciones de integridad de la operación.
+
 transactionSchema.pre("validate", function () {
+  // Ingresos y gastos deben tener una categoría principal
+  // o divisiones, pero nunca ambas opciones.
+  if (this.type === "income" || this.type === "expense") {
+    const hasCategory = Boolean(this.categoryId);
+    const hasSplits = this.splits.length > 0;
+
+    if (!hasCategory && !hasSplits) {
+      this.invalidate(
+        "categoryId",
+        "Los ingresos y gastos deben tener una categoría o divisiones."
+      );
+    }
+
+    if (hasCategory && hasSplits) {
+      this.invalidate(
+        "categoryId",
+        "Utiliza una categoría principal o divisiones, no ambas."
+      );
+    }
+  }
+
   // Validar divisiones por categoría.
   if (this.splits.length > 0) {
     const splitTotal = this.splits.reduce(
@@ -253,8 +275,7 @@ transactionSchema.pre("validate", function () {
   // Validar conversión de moneda.
   if (this.exchange) {
     if (
-      this.exchange.fromCurrency ===
-      this.exchange.toCurrency
+      this.exchange.fromCurrency === this.exchange.toCurrency
     ) {
       this.invalidate(
         "exchange",

@@ -110,10 +110,16 @@ ledgerEntrySchema.index({
   effectiveAt: -1,
 });
 
-// Movimientos de una transacción.
-ledgerEntrySchema.index({
-  transactionId: 1,
-});
+// Una transacción solo puede generar un movimiento contable original.
+ledgerEntrySchema.index(
+  { transactionId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: "transaction",
+    },
+  }
+);
 
 // Movimientos por workspace, cuenta y fecha.
 ledgerEntrySchema.index({
