@@ -28,7 +28,11 @@ export type Permission =
   | "budgets:delete"
   | "loans:read"
   | "loans:create"
-  | "loans:update";
+  | "loans:update"
+  | "categories:read"
+  | "categories:create"
+  | "categories:update"
+  | "categories:archive";
 
 const ROLE_PERMISSIONS = {
   OWNER: [
@@ -60,6 +64,11 @@ const ROLE_PERMISSIONS = {
     "loans:read",
     "loans:create",
     "loans:update",
+
+    "categories:read",
+    "categories:create",
+    "categories:update",
+    "categories:archive",
   ],
 
   ADMIN: [
@@ -89,6 +98,11 @@ const ROLE_PERMISSIONS = {
     "loans:read",
     "loans:create",
     "loans:update",
+
+    "categories:read",
+    "categories:create",
+    "categories:update",
+    "categories:archive",
   ],
 
   EDITOR: [
@@ -110,6 +124,10 @@ const ROLE_PERMISSIONS = {
     "loans:read",
     "loans:create",
     "loans:update",
+
+    "categories:read",
+    "categories:create",
+    "categories:update",
   ],
 
   VIEWER: [
@@ -119,6 +137,7 @@ const ROLE_PERMISSIONS = {
     "transactions:read",
     "budgets:read",
     "loans:read",
+    "categories:read",
   ],
 } as const satisfies Record<MembershipRole, readonly Permission[]>;
 

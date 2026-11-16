@@ -8,6 +8,8 @@ import { connectDB } from "@/lib/mongodb/connection";
 import { MembershipModel } from "@/modules/workspaces/membership.model";
 import { WorkspaceModel } from "@/modules/workspaces/workspace.model";
 
+import { createDefaultCategories } from "@/modules/categories/category.defaults";
+
 // GET: listar workspaces del usuario.
 export async function GET() {
   try {
@@ -217,6 +219,12 @@ export async function POST(request: Request) {
           ],
           { session }
         );
+
+        await createDefaultCategories({
+          workspaceId: workspace._id,
+          userId: user._id,
+          session,
+        });
 
         createdWorkspaceId = workspace._id;
       });

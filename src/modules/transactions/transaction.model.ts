@@ -76,6 +76,20 @@ const transactionSchema = new Schema(
       required: true,
     },
 
+    // Cuenta afectada o cuenta de origen.
+    accountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
+      required: true,
+    },
+
+    // Exclusivamente para transferencias.
+    destinationAccountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
+      default: null,
+    },
+
     type: {
       type: String,
       enum: [
@@ -104,6 +118,7 @@ const transactionSchema = new Schema(
       default: Date.now,
     },
 
+    // Para transferencias representa el importe de origen.
     amountMinor: {
       type: Number,
       required: true,
@@ -115,6 +130,7 @@ const transactionSchema = new Schema(
       },
     },
 
+    // Para transferencias representa la moneda de origen.
     currency: {
       type: String,
       required: true,
@@ -174,6 +190,7 @@ const transactionSchema = new Schema(
 
 // Validaciones de integridad de la operación.
 transactionSchema.pre("validate", function () {
+  // Validar divisiones por categoría.
   if (this.splits.length > 0) {
     const splitTotal = this.splits.reduce(
       (total, split) => total + split.amountMinor,
@@ -191,6 +208,49 @@ transactionSchema.pre("validate", function () {
     }
   }
 
+  // Validar cuenta de destino.
+  if (this.type === "transfer") {
+    if (!this.destinationAccountId) {
+      this.invalidate(
+        "destinationAccountId",
+        "Una transferencia requiere una cuenta de destino."
+      );
+    }
+
+    if (
+      this.destinationAccountId &&
+      this.accountId &&
+      this.destinationAccountId.equals(this.accountId)
+    ) {
+      this.invalidate(
+        "destinationAccountId",
+        "La cuenta de origen y destino deben ser diferentes."
+      );
+    }
+
+    if (this.categoryId || this.splits.length > 0) {
+      this.invalidate(
+        "categoryId",
+        "Las transferencias no deben tener categorías."
+      );
+    }
+  } else {
+    if (this.destinationAccountId) {
+      this.invalidate(
+        "destinationAccountId",
+        "Solo las transferencias pueden tener una cuenta de destino."
+      );
+    }
+
+    if (this.exchange) {
+      this.invalidate(
+        "exchange",
+        "La conversión de moneda solo aplica a transferencias."
+      );
+    }
+  }
+
+  // Validar conversión de moneda.
   if (this.exchange) {
     if (
       this.exchange.fromCurrency ===
@@ -199,6 +259,13 @@ transactionSchema.pre("validate", function () {
       this.invalidate(
         "exchange",
         "Las monedas de origen y destino deben ser diferentes."
+      );
+    }
+
+    if (this.exchange.fromCurrency !== this.currency) {
+      this.invalidate(
+        "exchange.fromCurrency",
+        "La moneda de origen debe coincidir con la moneda de la transacción."
       );
     }
 
@@ -230,6 +297,20 @@ transactionSchema.index({
 transactionSchema.index({
   workspaceId: 1,
   categoryId: 1,
+  date: -1,
+});
+
+// Consultar movimientos por cuenta.
+transactionSchema.index({
+  workspaceId: 1,
+  accountId: 1,
+  date: -1,
+});
+
+// Consultar transferencias recibidas.
+transactionSchema.index({
+  workspaceId: 1,
+  destinationAccountId: 1,
   date: -1,
 });
 
