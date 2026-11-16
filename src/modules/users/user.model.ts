@@ -33,7 +33,7 @@ const userPreferencesSchema = new Schema(
   },
   {
     _id: false,
-  },
+  }
 );
 
 const userSchema = new Schema(
@@ -53,6 +53,10 @@ const userSchema = new Schema(
       lowercase: true,
       trim: true,
       maxlength: 254,
+      match: [
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+        "Introduce un correo electrónico válido.",
+      ],
     },
 
     avatar: {
@@ -76,7 +80,7 @@ const userSchema = new Schema(
     timestamps: true,
     versionKey: false,
     collection: "users",
-  },
+  }
 );
 
 export type User = InferSchemaType<typeof userSchema>;
