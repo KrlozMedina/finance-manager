@@ -212,3 +212,151 @@ export async function POST(
     );
   }
 }
+
+
+export async function GET(
+  request: Request,
+  { params }: RouteContext
+) {
+  try {
+    const { workspaceId } = await params;
+
+    const access = await requireWorkspacePermission({
+      workspaceId,
+      permission: "members:read",
+    });
+
+    if (!access.authorized) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "No tienes permiso para consultar invitaciones.",
+        },
+        {
+          status:
+            access.reason === "UNAUTHORIZED" ? 401 : 403,
+        }
+      );
+    }
+
+    await connectDB();
+
+    const { searchParams } = new URL(request.url);
+
+    const page = Number(searchParams.get("page") ?? 1);
+    const requestedLimit = Number(
+      searchParams.get("limit") ?? 20
+    );
+
+    if (
+      !Number.isInteger(page) ||
+      page < 1 ||
+      !Number.isInteger(requestedLimit) ||
+      requestedLimit < 1
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Los parámetros de paginación no son válidos.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const limit = Math.min(requestedLimit, 100);
+    const skip = (page - 1) * limit;
+    const now = new Date();
+
+    // Actualizar invitaciones vencidas.
+    await InvitationModel.updateMany(
+      {
+        workspaceId,
+        status: "pending",
+        expiresAt: { $lte: now },
+      },
+      {
+        $set: { status: "expired" },
+      }
+    );
+
+    const filter = {
+      workspaceId,
+      status: "pending",
+    };
+
+    const [invitations, total] = await Promise.all([
+      InvitationModel.find(filter)
+        .select("email role invitedBy expiresAt createdAt")
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+
+      InvitationModel.countDocuments(filter),
+    ]);
+
+    const inviterIds = [
+      ...new Set(
+        invitations.map((invitation) =>
+          invitation.invitedBy.toString()
+        )
+      ),
+    ];
+
+    const inviters = await UserModel.find({
+      _id: { $in: inviterIds },
+    })
+      .select("name email avatar")
+      .lean();
+
+    const inviterMap = new Map(
+      inviters.map((user) => [
+        user._id.toString(),
+        user,
+      ])
+    );
+
+    const data = invitations.map((invitation) => {
+      const inviter = inviterMap.get(
+        invitation.invitedBy.toString()
+      );
+
+      return {
+        id: invitation._id.toString(),
+        email: invitation.email,
+        role: invitation.role,
+        expiresAt: invitation.expiresAt,
+        createdAt: invitation.createdAt,
+        invitedBy: inviter
+          ? {
+              id: inviter._id.toString(),
+              name: inviter.name,
+              email: inviter.email,
+              avatar: inviter.avatar,
+            }
+          : null,
+      };
+    });
+
+    return NextResponse.json({
+      success: true,
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error("[GET WORKSPACE INVITATIONS]", error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Error al consultar las invitaciones.",
+      },
+      { status: 500 }
+    );
+  }
+}

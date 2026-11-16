@@ -13,14 +13,12 @@ import { MembershipModel } from "@/modules/workspaces/membership.model";
 const ACTIVE_WORKSPACE_COOKIE = "fm_active_workspace";
 
 export async function getActiveWorkspace() {
-  // 1. Obtener usuario autenticado.
   const user = await getCurrentUser();
 
   if (!user) {
     return null;
   }
 
-  // 2. Leer workspace seleccionado.
   const cookieStore = await cookies();
 
   const workspaceId = cookieStore.get(
@@ -33,7 +31,6 @@ export async function getActiveWorkspace() {
 
   await connectDB();
 
-  // 3. Comprobar membresía activa.
   const membership = await MembershipModel.findOne({
     workspaceId,
     userId: user._id,
@@ -44,16 +41,15 @@ export async function getActiveWorkspace() {
     return null;
   }
 
-  // 4. Obtener workspace.
-  const workspace = await WorkspaceModel.findById(
-    workspaceId
-  ).lean();
+  const workspace = await WorkspaceModel.findOne({
+    _id: workspaceId,
+    deletedAt: null,
+  }).lean();
 
   if (!workspace) {
     return null;
   }
 
-  // 5. Devolver contexto completo.
   return {
     user,
     workspace,

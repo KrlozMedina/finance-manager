@@ -28,9 +28,10 @@ export async function getCurrentWorkspace(workspaceId: string) {
     return null;
   }
 
-  const workspace = await WorkspaceModel.findById(
-    workspaceId
-  ).lean();
+  const workspace = await WorkspaceModel.findOne({
+    _id: workspaceId,
+    deletedAt: null,
+  }).lean();
 
   if (!workspace) {
     return null;

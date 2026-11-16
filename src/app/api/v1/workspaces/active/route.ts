@@ -60,13 +60,11 @@ export async function GET() {
       );
 
       response.cookies.delete(ACTIVE_WORKSPACE_COOKIE);
-
       return response;
     }
 
     await connectDB();
 
-    // Comprobar que el usuario conserva su membresía activa.
     const membership = await MembershipModel.findOne({
       workspaceId,
       userId: user._id,
@@ -83,13 +81,13 @@ export async function GET() {
       );
 
       response.cookies.delete(ACTIVE_WORKSPACE_COOKIE);
-
       return response;
     }
 
-    const workspace = await WorkspaceModel.findById(
-      workspaceId
-    )
+    const workspace = await WorkspaceModel.findOne({
+      _id: workspaceId,
+      deletedAt: null,
+    })
       .select("name type defaultCurrency settings createdAt")
       .lean();
 
@@ -97,13 +95,12 @@ export async function GET() {
       const response = NextResponse.json(
         {
           success: false,
-          message: "El workspace seleccionado no existe.",
+          message: "El workspace no existe o fue eliminado.",
         },
         { status: 404 }
       );
 
       response.cookies.delete(ACTIVE_WORKSPACE_COOKIE);
-
       return response;
     }
 
@@ -148,7 +145,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => null);
-
     const workspaceId = body?.workspaceId;
 
     if (
@@ -166,7 +162,6 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Verificar pertenencia y membresía activa.
     const membership = await MembershipModel.findOne({
       workspaceId,
       userId: user._id,
@@ -183,9 +178,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const workspace = await WorkspaceModel.findById(
-      workspaceId
-    )
+    const workspace = await WorkspaceModel.findOne({
+      _id: workspaceId,
+      deletedAt: null,
+    })
       .select("name type defaultCurrency settings")
       .lean();
 
@@ -193,7 +189,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "El workspace no existe.",
+          message: "El workspace no existe o fue eliminado.",
         },
         { status: 404 }
       );

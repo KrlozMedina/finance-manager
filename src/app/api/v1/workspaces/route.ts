@@ -46,10 +46,12 @@ export async function GET() {
 
     const workspaces = await WorkspaceModel.find({
       _id: { $in: workspaceIds },
+      deletedAt: null,
     })
       .select("name type defaultCurrency settings createdAt updatedAt")
       .sort({ createdAt: 1 })
       .lean();
+
 
     const workspaceMap = new Map(
       workspaces.map((workspace) => [
