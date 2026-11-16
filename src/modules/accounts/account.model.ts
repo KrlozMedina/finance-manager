@@ -30,7 +30,11 @@ const accountDetailsSchema = new Schema(
       min: 1,
       max: 31,
       default: null,
-      validate: Number.isSafeInteger,
+      validate: {
+        validator: (value: number | null) =>
+          value === null || Number.isSafeInteger(value),
+        message: "El día de corte debe ser un entero seguro.",
+      },
     },
 
     paymentDay: {
@@ -38,7 +42,11 @@ const accountDetailsSchema = new Schema(
       min: 1,
       max: 31,
       default: null,
-      validate: Number.isSafeInteger,
+      validate: {
+        validator: (value: number | null) =>
+          value === null || Number.isSafeInteger(value),
+        message: "El día de pago debe ser un entero seguro.",
+      },
     },
   },
   {
