@@ -98,7 +98,7 @@ export async function GET() {
       ],
     })
       .select(
-        "name institution type currency initialBalanceMinor openingDate visibility details status createdBy createdAt updatedAt"
+        "workspaceId name institution type currency initialBalanceMinor openingDate visibility details status createdBy createdAt updatedAt"
       )
       .sort({ createdAt: 1, _id: 1 })
       .lean();
