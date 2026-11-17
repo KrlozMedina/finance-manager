@@ -68,6 +68,38 @@ const transactionExchangeSchema = new Schema(
   }
 );
 
+
+const transactionFeeSchema = new Schema(
+  {
+    amountMinor: {
+      type: Number,
+      required: true,
+      min: 1,
+      validate: {
+        validator: (value: number) =>
+          Number.isSafeInteger(value),
+        message: "La comisión debe ser un entero seguro.",
+      },
+    },
+
+    currency: {
+      type: String,
+      required: true,
+      uppercase: true,
+      match: /^[A-Z]{3}$/,
+    },
+
+    categoryId: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+      required: true,
+    },
+  },
+  {
+    _id: false,
+  }
+);
+
 const transactionSchema = new Schema(
   {
     workspaceId: {
@@ -154,6 +186,11 @@ const transactionSchema = new Schema(
       default: null,
     },
 
+    fee: {
+      type: transactionFeeSchema,
+      default: null,
+    },
+
     idempotencyKey: {
       type: String,
       trim: true,
@@ -179,6 +216,16 @@ const transactionSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
   },
   {
@@ -268,6 +315,23 @@ transactionSchema.pre("validate", function () {
       this.invalidate(
         "exchange",
         "La conversión de moneda solo aplica a transferencias."
+      );
+    }
+  }
+
+  // Validar comisión de transferencia.
+  if (this.fee) {
+    if (this.type !== "transfer") {
+      this.invalidate(
+        "fee",
+        "La comisión solo puede asociarse a una transferencia."
+      );
+    }
+
+    if (this.fee.currency !== this.currency) {
+      this.invalidate(
+        "fee.currency",
+        "La comisión debe utilizar la moneda de origen."
       );
     }
   }

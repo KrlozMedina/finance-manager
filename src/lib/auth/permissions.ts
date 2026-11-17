@@ -22,6 +22,7 @@ export type Permission =
   | "transactions:create"
   | "transactions:update"
   | "transactions:cancel"
+  | "transactions:delete"
   | "budgets:read"
   | "budgets:create"
   | "budgets:update"
@@ -69,6 +70,12 @@ const ROLE_PERMISSIONS = {
     "categories:create",
     "categories:update",
     "categories:archive",
+
+    "transactions:read",
+    "transactions:create",
+    "transactions:update",
+    "transactions:cancel",
+    "transactions:delete",
   ],
 
   ADMIN: [
@@ -103,6 +110,12 @@ const ROLE_PERMISSIONS = {
     "categories:create",
     "categories:update",
     "categories:archive",
+
+    "transactions:read",
+    "transactions:create",
+    "transactions:update",
+    "transactions:cancel",
+    "transactions:delete",
   ],
 
   EDITOR: [

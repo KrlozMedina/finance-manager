@@ -9,9 +9,11 @@ import { connectDB } from "@/lib/mongodb/connection";
 import { TransactionModel } from "@/modules/transactions/transaction.model";
 import {
   createFinancialTransaction,
+  createTransferTransaction,
   TransactionServiceError,
 } from "@/modules/transactions/transaction.service";
 import { AccountModel } from "@/modules/accounts/account.model";
+
 
 // GET: consultar movimientos del workspace.
 export async function GET(request: Request) {
@@ -162,6 +164,9 @@ export async function GET(request: Request) {
 
     const filters: Record<string, unknown> = {
       workspaceId,
+      // Excluye movimientos eliminados; también incluye documentos antiguos
+      // que todavía no tengan el campo deletedAt.
+      deletedAt: null,
       accountId: { $in: accessibleAccountIds },
       $or: [
         { destinationAccountId: null },
@@ -258,7 +263,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: crear ingreso o gasto.
+// POST: crear ingreso, gasto o transferencia.
 export async function POST(request: Request) {
   try {
     const user = await getCurrentUser();
@@ -279,14 +284,19 @@ export async function POST(request: Request) {
       );
     }
 
+    const workspaceId = active.workspace._id.toString();
+
     const access = await requireWorkspacePermission({
-      workspaceId: active.workspace._id.toString(),
+      workspaceId,
       permission: "transactions:create",
     });
 
     if (!access.authorized) {
       return NextResponse.json(
-        { success: false, message: "No tienes permiso para crear movimientos." },
+        {
+          success: false,
+          message: "No tienes permiso para crear movimientos.",
+        },
         {
           status: access.reason === "UNAUTHORIZED" ? 401 : 403,
         }
@@ -304,19 +314,35 @@ export async function POST(request: Request) {
 
     const data = body as Record<string, unknown>;
 
-    const allowedFields = [
-      "accountId",
-      "type",
-      "description",
-      "amountMinor",
-      "currency",
-      "date",
-      "categoryId",
-      "splits",
-      "notes",
-      "status",
-      "idempotencyKey",
-    ];
+    const isTransfer = data.type === "transfer";
+
+    const allowedFields = isTransfer
+      ? [
+          "type",
+          "sourceAccountId",
+          "destinationAccountId",
+          "description",
+          "amountMinor",
+          "destinationAmountMinor",
+          "date",
+          "fee",
+          "notes",
+          "status",
+          "idempotencyKey",
+        ]
+      : [
+          "accountId",
+          "type",
+          "description",
+          "amountMinor",
+          "currency",
+          "date",
+          "categoryId",
+          "splits",
+          "notes",
+          "status",
+          "idempotencyKey",
+        ];
 
     const unknownFields = Object.keys(data).filter(
       (field) => !allowedFields.includes(field)
@@ -333,95 +359,22 @@ export async function POST(request: Request) {
     }
 
     if (
-      !["income", "expense"].includes(data.type as string)
+      data.status !== undefined &&
+      !["pending", "confirmed"].includes(data.status as string)
     ) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Por ahora solo se permiten ingresos y gastos.",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (typeof data.accountId !== "string") {
-      return NextResponse.json(
-        { success: false, message: "La cuenta es obligatoria." },
-        { status: 400 }
-      );
-    }
-
-    if (typeof data.description !== "string") {
-      return NextResponse.json(
-        { success: false, message: "La descripción es obligatoria." },
+        { success: false, message: "El estado no es válido." },
         { status: 400 }
       );
     }
 
     if (
-      typeof data.amountMinor !== "number" ||
-      !Number.isSafeInteger(data.amountMinor) ||
-      data.amountMinor <= 0
+      data.date !== undefined &&
+      (typeof data.date !== "string" ||
+        Number.isNaN(new Date(data.date).getTime()))
     ) {
       return NextResponse.json(
-        { success: false, message: "El importe no es válido." },
-        { status: 400 }
-      );
-    }
-
-    if (typeof data.currency !== "string") {
-      return NextResponse.json(
-        { success: false, message: "La moneda es obligatoria." },
-        { status: 400 }
-      );
-    }
-
-    let date: Date | undefined;
-
-    if (data.date !== undefined) {
-      if (typeof data.date !== "string") {
-        return NextResponse.json(
-          { success: false, message: "La fecha no es válida." },
-          { status: 400 }
-        );
-      }
-
-      date = new Date(data.date);
-
-      if (Number.isNaN(date.getTime())) {
-        return NextResponse.json(
-          { success: false, message: "La fecha no es válida." },
-          { status: 400 }
-        );
-      }
-    }
-
-    if (
-      data.categoryId !== undefined &&
-      data.categoryId !== null &&
-      typeof data.categoryId !== "string"
-    ) {
-      return NextResponse.json(
-        { success: false, message: "La categoría no es válida." },
-        { status: 400 }
-      );
-    }
-
-    if (
-      data.splits !== undefined &&
-      (
-        !Array.isArray(data.splits) ||
-        data.splits.some(
-          (split) =>
-            !split ||
-            typeof split !== "object" ||
-            typeof split.categoryId !== "string" ||
-            typeof split.amountMinor !== "number"
-        )
-      )
-    ) {
-      return NextResponse.json(
-        { success: false, message: "Las divisiones por categoría no son válidas." },
+        { success: false, message: "La fecha no es válida." },
         { status: 400 }
       );
     }
@@ -447,8 +400,216 @@ export async function POST(request: Request) {
       );
     }
 
+    const date =
+      typeof data.date === "string" ? new Date(data.date) : undefined;
+
+    // Crear transferencia.
+    if (isTransfer) {
+      const isValidObjectId = (value: unknown): value is string =>
+        typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
+
+      if (
+        !isValidObjectId(data.sourceAccountId) ||
+        !isValidObjectId(data.destinationAccountId)
+      ) {
+        return NextResponse.json(
+          { success: false, message: "Los identificadores de cuenta no son válidos." },
+          { status: 400 }
+        );
+      }
+
+      if (
+        typeof data.description !== "string" ||
+        data.description.trim().length < 2
+      ) {
+        return NextResponse.json(
+          { success: false, message: "La descripción es obligatoria." },
+          { status: 400 }
+        );
+      }
+
+      if (
+        typeof data.amountMinor !== "number" ||
+        !Number.isSafeInteger(data.amountMinor) ||
+        data.amountMinor <= 0
+      ) {
+        return NextResponse.json(
+          { success: false, message: "El importe de origen no es válido." },
+          { status: 400 }
+        );
+      }
+
+      if (
+        typeof data.destinationAmountMinor !== "number" ||
+        !Number.isSafeInteger(data.destinationAmountMinor) ||
+        data.destinationAmountMinor <= 0
+      ) {
+        return NextResponse.json(
+          { success: false, message: "El importe de destino no es válido." },
+          { status: 400 }
+        );
+      }
+
+      let fee:
+        | { amountMinor: number; categoryId: string }
+        | null
+        | undefined;
+
+      if (data.fee !== undefined && data.fee !== null) {
+        if (
+          typeof data.fee !== "object" ||
+          Array.isArray(data.fee)
+        ) {
+          return NextResponse.json(
+            { success: false, message: "La comisión no es válida." },
+            { status: 400 }
+          );
+        }
+
+        const feeData = data.fee as Record<string, unknown>;
+
+        const invalidFeeFields = Object.keys(feeData).filter(
+          (field) => !["amountMinor", "categoryId"].includes(field)
+        );
+
+        if (invalidFeeFields.length > 0) {
+          return NextResponse.json(
+            { success: false, message: "La comisión contiene campos no permitidos." },
+            { status: 400 }
+          );
+        }
+
+        if (
+          typeof feeData.amountMinor !== "number" ||
+          !Number.isSafeInteger(feeData.amountMinor) ||
+          feeData.amountMinor <= 0 ||
+          !isValidObjectId(feeData.categoryId)
+        ) {
+          return NextResponse.json(
+            { success: false, message: "Los datos de la comisión no son válidos." },
+            { status: 400 }
+          );
+        }
+
+        fee = {
+          amountMinor: feeData.amountMinor,
+          categoryId: feeData.categoryId,
+        };
+      }
+
+      const result = await createTransferTransaction({
+        workspaceId,
+        userId: user._id.toString(),
+        sourceAccountId: data.sourceAccountId,
+        destinationAccountId: data.destinationAccountId,
+        description: data.description,
+        amountMinor: data.amountMinor,
+        destinationAmountMinor: data.destinationAmountMinor,
+        date,
+        fee,
+        notes: data.notes as string | null | undefined,
+        status: data.status as "pending" | "confirmed" | undefined,
+        idempotencyKey: data.idempotencyKey as string | undefined,
+      });
+
+      return NextResponse.json(
+        {
+          success: true,
+          message: result.duplicate
+            ? "La transferencia ya había sido registrada."
+            : "Transferencia registrada correctamente.",
+          data: {
+            ...result.transaction,
+            id: result.transaction._id.toString(),
+          },
+          duplicate: result.duplicate,
+        },
+        { status: result.duplicate ? 200 : 201 }
+      );
+    }
+
+    // Crear ingreso o gasto.
+    if (!["income", "expense"].includes(data.type as string)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "El tipo de movimiento no es válido.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      typeof data.accountId !== "string" ||
+      !/^[a-f\d]{24}$/i.test(data.accountId)
+    ) {
+      return NextResponse.json(
+        { success: false, message: "La cuenta no es válida." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      typeof data.description !== "string" ||
+      data.description.trim().length < 2
+    ) {
+      return NextResponse.json(
+        { success: false, message: "La descripción es obligatoria." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      typeof data.amountMinor !== "number" ||
+      !Number.isSafeInteger(data.amountMinor) ||
+      data.amountMinor <= 0
+    ) {
+      return NextResponse.json(
+        { success: false, message: "El importe no es válido." },
+        { status: 400 }
+      );
+    }
+
+    if (typeof data.currency !== "string") {
+      return NextResponse.json(
+        { success: false, message: "La moneda es obligatoria." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      data.categoryId !== undefined &&
+      data.categoryId !== null &&
+      typeof data.categoryId !== "string"
+    ) {
+      return NextResponse.json(
+        { success: false, message: "La categoría no es válida." },
+        { status: 400 }
+      );
+    }
+
+    if (
+      data.splits !== undefined &&
+      (
+        !Array.isArray(data.splits) ||
+        data.splits.some(
+          (split) =>
+            !split ||
+            typeof split !== "object" ||
+            typeof split.categoryId !== "string" ||
+            typeof split.amountMinor !== "number" ||
+            !Number.isSafeInteger(split.amountMinor)
+        )
+      )
+    ) {
+      return NextResponse.json(
+        { success: false, message: "Las divisiones por categoría no son válidas." },
+        { status: 400 }
+      );
+    }
+
     const result = await createFinancialTransaction({
-      workspaceId: active.workspace._id.toString(),
+      workspaceId,
       userId: user._id.toString(),
       accountId: data.accountId,
       type: data.type as "income" | "expense",
@@ -495,3 +656,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

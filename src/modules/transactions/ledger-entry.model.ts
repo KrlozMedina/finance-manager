@@ -28,7 +28,15 @@ const ledgerEntrySchema = new Schema(
 
     type: {
       type: String,
-      enum: ["opening", "transaction", "adjustment", "reversal"],
+      enum: [
+        "opening",
+        "transaction",
+        "transfer_out",
+        "transfer_in",
+        "fee",
+        "adjustment",
+        "reversal",
+      ],
       required: true,
     },
 
@@ -85,7 +93,13 @@ ledgerEntrySchema.pre("validate", function () {
   }
 
   if (
-    ["transaction", "adjustment"].includes(this.type) &&
+    [
+      "transaction",
+      "transfer_out",
+      "transfer_in",
+      "fee",
+      "adjustment",
+    ].includes(this.type) &&
     (!this.transactionId || this.reversalOf)
   ) {
     this.invalidate(
@@ -110,16 +124,21 @@ ledgerEntrySchema.index({
   effectiveAt: -1,
 });
 
-// Una transacción solo puede generar un movimiento contable original.
+
+// Una transacción solo puede generar una entrada de cada tipo
+// entre los movimientos contables originales de este modelo.
 ledgerEntrySchema.index(
-  { transactionId: 1 },
+  { transactionId: 1, type: 1 },
   {
     unique: true,
     partialFilterExpression: {
-      type: "transaction",
+      type: {
+        $in: ["transaction", "transfer_out", "transfer_in", "fee"],
+      },
     },
   }
 );
+
 
 // Movimientos por workspace, cuenta y fecha.
 ledgerEntrySchema.index({
