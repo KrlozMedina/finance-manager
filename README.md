@@ -7,39 +7,51 @@ Finance Manager is a web application designed to help individuals and shared wor
 ## Features
 
 ### Authentication and Workspaces
-- Google authentication.
+- Google authentication with Auth.js.
 - Personal and shared workspaces.
 - Workspace membership and role-based permissions.
 - Workspace invitations and member management.
+- Active workspace selection.
+- Workspace ownership management and access control.
 
 ### Account Management
 - Bank accounts.
 - Savings accounts.
 - Cash accounts.
 - Digital wallets.
+- Initial account balances.
 - Account visibility and archival.
+- Workspace-scoped account management.
 
 ### Category Management
 - Custom income and expense categories.
 - Subcategories.
 - Category icons and colors.
 - Workspace-scoped categories.
+- Category hierarchy management.
 
 ### Transaction Management
 - Register income and expenses.
+- Register account transfers.
 - Create pending transactions.
 - Confirm pending transactions.
 - Cancel pending transactions.
 - Edit pending transactions.
+- Soft delete pending transactions.
 - Support for category splits.
+- Transaction filtering and pagination.
 - Idempotent transaction creation.
+- Role-based transaction permissions.
 
 ### Financial Ledger
 - Centralized financial transaction records.
 - Automatic ledger entries for confirmed transactions.
 - Positive and negative balance movements.
+- Initial balance tracking.
 - Atomic database operations.
 - Protection against duplicate ledger entries.
+- Ledger integrity when transactions are edited, confirmed, or cancelled.
+- Soft-deleted transactions excluded from regular listings without modifying historical ledger records.
 
 ## Tech Stack
 
@@ -52,20 +64,24 @@ Finance Manager is a web application designed to help individuals and shared wor
 
 ## Project Status
 
-Currently implemented:
+### Implemented
 - Authentication and workspace management.
+- Workspace membership and role-based permissions.
 - Financial account management.
 - Category management.
 - Income and expense transactions.
+- Account transfers.
 - Transaction confirmation, cancellation, and editing.
+- Soft deletion of pending transactions.
 - Financial ledger and idempotency controls.
+- Transaction access control and workspace isolation.
 
-Planned:
-- Transfers between accounts.
-- Multi-currency transaction handling.
+### Planned
+- Multi-currency transaction handling and exchange rates.
 - Budgets and financial reports.
 - Recurring transactions.
 - Dashboard and financial analytics.
+- Advanced financial insights.
 
 ## Getting Started
 
@@ -84,7 +100,9 @@ pnpm install
 
 ### Environment Variables
 
-Configure your environment variables in a `.env.local` file according to the application's authentication and database configuration.
+Create a `.env.local` file in the project root and configure the environment variables required by the application.
+
+These include the database connection and authentication configuration. Refer to the application's configuration for the exact variable names.
 
 ### Run Development Server
 
