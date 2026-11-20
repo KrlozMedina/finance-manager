@@ -1,5 +1,6 @@
 
 import type { Metadata } from "next";
+import { ThemeProvider } from "@/contexts/ThemeProvider";
 import "./globals.scss";
 
 export const metadata: Metadata = {
@@ -19,8 +20,10 @@ export default function RootLayout({
   children,
 }: Readonly<RootLayoutProps>) {
   return (
-    <html lang="es">
-      <body>{children}</body>
+    <html lang="es" suppressHydrationWarning>
+      <body>
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

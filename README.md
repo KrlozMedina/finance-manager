@@ -55,12 +55,12 @@ Finance Manager is a web application designed to help individuals and shared wor
 
 ## Tech Stack
 
-- **Frontend:** Next.js, React, TypeScript
-- **Backend:** Next.js API Routes
-- **Database:** MongoDB Atlas
-- **ODM:** Mongoose
-- **Authentication:** Auth.js
-- **Package Manager:** pnpm
+- **Frontend:** Next.js, React, TypeScript.
+- **Backend:** Next.js API Routes.
+- **Database:** MongoDB Atlas.
+- **ODM:** Mongoose.
+- **Authentication:** Auth.js.
+- **Package Manager:** pnpm.
 
 ## Project Status
 
@@ -86,9 +86,9 @@ Finance Manager is a web application designed to help individuals and shared wor
 ## Getting Started
 
 ### Requirements
-- Node.js
-- pnpm
-- MongoDB Atlas account
+- Node.js.
+- pnpm.
+- MongoDB Atlas account.
 
 ### Installation
 
@@ -110,7 +110,7 @@ These include the database connection and authentication configuration. Refer to
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to access the application.
+Open http://localhost:3000 to access the application.
 
 ## License
 
