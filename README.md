@@ -2,7 +2,7 @@
 
 Personal and shared financial management application.
 
-Finance Manager is a web application designed to help individuals and shared workspaces manage their finances, track income and expenses, organize financial accounts, and maintain accurate transaction records.
+Finance Manager is a web application designed to help individuals and shared workspaces manage their finances, track income and expenses, organize financial accounts, and maintain accurate transaction records through a centralized financial ledger.
 
 ## Features
 
@@ -19,6 +19,9 @@ Finance Manager is a web application designed to help individuals and shared wor
 - Savings accounts.
 - Cash accounts.
 - Digital wallets.
+- Credit cards.
+- Loan and receivable accounts.
+- Multiple currencies.
 - Initial account balances.
 - Account visibility and archival.
 - Workspace-scoped account management.
@@ -50,8 +53,16 @@ Finance Manager is a web application designed to help individuals and shared wor
 - Initial balance tracking.
 - Atomic database operations.
 - Protection against duplicate ledger entries.
-- Ledger integrity when transactions are edited, confirmed, or cancelled.
+- Ledger integrity controls.
 - Soft-deleted transactions excluded from regular listings without modifying historical ledger records.
+
+### Dashboard and Financial Overview
+- Account balance summaries.
+- Account grouping by currency.
+- Credit card utilization and available credit.
+- Monthly income and expense summaries.
+- Monthly transfer fee tracking.
+- Monthly financial balance by currency.
 
 ## Tech Stack
 
@@ -60,6 +71,7 @@ Finance Manager is a web application designed to help individuals and shared wor
 - **Database:** MongoDB Atlas.
 - **ODM:** Mongoose.
 - **Authentication:** Auth.js.
+- **Styling:** SCSS Modules.
 - **Package Manager:** pnpm.
 
 ## Project Status
@@ -75,12 +87,14 @@ Finance Manager is a web application designed to help individuals and shared wor
 - Soft deletion of pending transactions.
 - Financial ledger and idempotency controls.
 - Transaction access control and workspace isolation.
+- Dashboard and financial summaries.
 
 ### Planned
-- Multi-currency transaction handling and exchange rates.
+- Complete transaction history interface.
+- Advanced transaction search and filtering interface.
+- Multi-currency transaction conversion and exchange rates.
 - Budgets and financial reports.
 - Recurring transactions.
-- Dashboard and financial analytics.
 - Advanced financial insights.
 
 ## Getting Started
@@ -89,6 +103,7 @@ Finance Manager is a web application designed to help individuals and shared wor
 - Node.js.
 - pnpm.
 - MongoDB Atlas account.
+- Google Cloud project with OAuth credentials.
 
 ### Installation
 
@@ -102,7 +117,13 @@ pnpm install
 
 Create a `.env.local` file in the project root and configure the environment variables required by the application.
 
-These include the database connection and authentication configuration. Refer to the application's configuration for the exact variable names.
+These include:
+- MongoDB connection configuration.
+- Auth.js authentication configuration.
+- Google OAuth credentials.
+- Authentication secrets.
+
+Use the variable names expected by the application's configuration. Never commit `.env.local` or expose credentials in the repository.
 
 ### Run Development Server
 
@@ -110,8 +131,15 @@ These include the database connection and authentication configuration. Refer to
 pnpm dev
 ```
 
-Open http://localhost:3000 to access the application.
+Open [http://localhost:3000](http://localhost:3000) to access the application.
+
+### Build for Production
+
+```bash
+pnpm build
+pnpm start
+```
 
 ## License
 
-Not specified yet.
+No license has been specified yet.

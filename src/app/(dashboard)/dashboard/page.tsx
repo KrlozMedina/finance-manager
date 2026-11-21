@@ -2,6 +2,8 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
+import DashboardOverview from "@/components/dashboard/DashboardOverview";
+
 export default async function DashboardPage() {
   const session = await auth();
 
@@ -11,15 +13,7 @@ export default async function DashboardPage() {
 
   return (
     <main>
-      <h1>Dashboard</h1>
-
-      <p>
-        Bienvenido, {session.user.name ?? "Usuario"}.
-      </p>
-
-      <p>
-        Correo: {session.user.email}
-      </p>
+      <DashboardOverview />
     </main>
   );
 }

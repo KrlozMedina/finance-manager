@@ -454,6 +454,32 @@ export async function POST(request: Request) {
       );
     }
 
+    // Validaciones específicas para tarjetas de crédito.
+    if (type === "credit_card") {
+      if (
+        typeof details.creditLimitMinor !== "number" ||
+        details.creditLimitMinor <= 0
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "La tarjeta debe tener un cupo de crédito mayor que cero.",
+          },
+          { status: 400 }
+        );
+      }
+
+      if (initialBalanceMinor > details.creditLimitMinor) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "La deuda inicial no puede superar el cupo de crédito.",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     await connectDB();
 
     let createdAccountId: mongoose.Types.ObjectId | null = null;
@@ -480,6 +506,12 @@ export async function POST(request: Request) {
         { session }
       );
 
+      // Determinar el signo contable del saldo inicial.
+      const openingAmountMinor =
+        type === "credit_card" || type === "loan_liability"
+          ? -initialBalanceMinor
+          : initialBalanceMinor;
+
       // No crear entradas de apertura con importe cero.
       if (initialBalanceMinor > 0) {
         await LedgerEntryModel.create(
@@ -489,7 +521,7 @@ export async function POST(request: Request) {
               transactionId: null,
               accountId: account._id,
               type: "opening",
-              amountMinor: initialBalanceMinor,
+              amountMinor: openingAmountMinor,
               currency: currency.toUpperCase(),
               effectiveAt: openingDate,
               reversalOf: null,

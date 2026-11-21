@@ -1,12 +1,14 @@
-
+import { WorkspaceProvider } from "@/contexts/WorkspaceProvider";
 import MainLayout from "@/components/layout/MainLayout";
-
-interface DashboardLayoutProps {
-  children: React.ReactNode;
-}
 
 export default function DashboardLayout({
   children,
-}: DashboardLayoutProps) {
-  return <MainLayout>{children}</MainLayout>;
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <WorkspaceProvider>
+      <MainLayout>{children}</MainLayout>
+    </WorkspaceProvider>
+  );
 }

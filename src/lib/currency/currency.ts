@@ -65,6 +65,7 @@ export function toMinorUnits(
   return Number(minorUnits);
 }
 
+
 export function fromMinorUnits(
   amountMinor: number,
   currency: string
@@ -77,17 +78,35 @@ export function fromMinorUnits(
   const factor = getCurrencyFactor(currency);
   const amount = BigInt(amountMinor);
 
-  const integerPart = amount / factor;
+  const isNegative = amount < 0n;
+  const absoluteAmount = isNegative ? -amount : amount;
+
+  const integerPart = absoluteAmount / factor;
 
   if (exponent === 0) {
-    return integerPart.toString();
+    return `${isNegative ? "-" : ""}${integerPart}`;
   }
 
-  const decimalPart = (amount % factor)
+  const decimalPart = (absoluteAmount % factor)
     .toString()
     .padStart(exponent, "0");
 
-  return `${integerPart}.${decimalPart}`;
+  return `${isNegative ? "-" : ""}${integerPart}.${decimalPart}`;
+}
+
+export function formatCurrency(
+  amountMinor: number,
+  currency: string,
+  locale = "es-CO"
+): string {
+  const amount = Number(
+    fromMinorUnits(amountMinor, currency)
+  );
+
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: currency.toUpperCase(),
+  }).format(amount);
 }
 
 export function convertMinorUnits(

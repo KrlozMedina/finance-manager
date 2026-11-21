@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useTheme } from "@/contexts/ThemeProvider";
 import styles from "./MainLayout.module.scss";
+import WorkspaceSelector from "@/components/workspaces/WorkspaceSelector";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -143,6 +144,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
           </div>
 
           <div className={styles.headerActions}>
+            <WorkspaceSelector />
+
             <button
               type="button"
               className={styles.themeButton}
