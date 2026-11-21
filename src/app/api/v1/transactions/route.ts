@@ -14,7 +14,6 @@ import {
 } from "@/modules/transactions/transaction.service";
 import { AccountModel } from "@/modules/accounts/account.model";
 
-
 // GET: consultar movimientos del workspace.
 export async function GET(request: Request) {
   try {
@@ -45,7 +44,10 @@ export async function GET(request: Request) {
 
     if (!access.authorized) {
       return NextResponse.json(
-        { success: false, message: "No tienes permiso para consultar movimientos." },
+        {
+          success: false,
+          message: "No tienes permiso para consultar movimientos.",
+        },
         {
           status: access.reason === "UNAUTHORIZED" ? 401 : 403,
         }
@@ -94,6 +96,7 @@ export async function GET(request: Request) {
       );
     }
 
+    // Validar fechas.
     const dateFilter: Record<string, Date> = {};
 
     if (startDate) {
@@ -133,6 +136,7 @@ export async function GET(request: Request) {
       );
     }
 
+    // Paginación.
     const page = Math.max(
       1,
       Number.parseInt(searchParams.get("page") ?? "1", 10) || 1
@@ -146,8 +150,10 @@ export async function GET(request: Request) {
       )
     );
 
-    // Obtener las cuentas visibles para el usuario.
-    // Incluye archivadas para conservar el acceso al historial.
+    // Conectar antes de realizar consultas.
+    await connectDB();
+
+    // Obtener las cuentas accesibles para el usuario.
     const accessibleAccounts = await AccountModel.find({
       workspaceId,
       $or: [
@@ -162,14 +168,17 @@ export async function GET(request: Request) {
       (account) => account._id
     );
 
+    const accessibleAccountIdSet = new Set(
+      accessibleAccountIds.map((id) => id.toString())
+    );
+
+    // Una transacción es visible si al menos una de sus cuentas
+    // es accesible para el usuario.
     const filters: Record<string, unknown> = {
       workspaceId,
-      // Excluye movimientos eliminados; también incluye documentos antiguos
-      // que todavía no tengan el campo deletedAt.
       deletedAt: null,
-      accountId: { $in: accessibleAccountIds },
       $or: [
-        { destinationAccountId: null },
+        { accountId: { $in: accessibleAccountIds } },
         { destinationAccountId: { $in: accessibleAccountIds } },
       ],
     };
@@ -177,12 +186,9 @@ export async function GET(request: Request) {
     if (type) filters.type = type;
     if (status) filters.status = status;
 
+    // Si se filtra por cuenta, esta debe ser accesible.
     if (accountId) {
-      if (
-        !accessibleAccountIds.some(
-          (id) => id.toString() === accountId
-        )
-      ) {
+      if (!accessibleAccountIdSet.has(accountId)) {
         return NextResponse.json({
           success: true,
           data: [],
@@ -209,22 +215,6 @@ export async function GET(request: Request) {
       filters.date = dateFilter;
     }
 
-    if (type) filters.type = type;
-    if (status) filters.status = status;
-
-    if (accountId) {
-      filters.$or = [
-        { accountId },
-        { destinationAccountId: accountId },
-      ];
-    }
-
-    if (startDate || endDate) {
-      filters.date = dateFilter;
-    }
-
-    await connectDB();
-
     const [transactions, total] = await Promise.all([
       TransactionModel.find(filters)
         .populate("accountId", "name type currency")
@@ -238,14 +228,45 @@ export async function GET(request: Request) {
       TransactionModel.countDocuments(filters),
     ]);
 
+    // Obtener el ID tanto si la cuenta está poblada como si no.
+    const getAccountId = (value: unknown): string | null => {
+      if (!value) return null;
+
+      if (typeof value === "object" && "_id" in value) {
+        return String((value as { _id: unknown })._id);
+      }
+
+      return String(value);
+    };
+
     return NextResponse.json({
       success: true,
-      data: transactions.map((transaction) => ({
-        ...transaction,
-        id: transaction._id.toString(),
-        workspaceId: transaction.workspaceId.toString(),
-        createdBy: transaction.createdBy.toString(),
-      })),
+      data: transactions.map((transaction) => {
+        const sourceAccountId = getAccountId(transaction.accountId);
+        const destinationAccountId = getAccountId(
+          transaction.destinationAccountId
+        );
+
+        return {
+          ...transaction,
+          id: transaction._id.toString(),
+          workspaceId: transaction.workspaceId.toString(),
+          createdBy: transaction.createdBy.toString(),
+
+          // No revelar información de cuentas privadas.
+          accountId:
+            sourceAccountId &&
+            accessibleAccountIdSet.has(sourceAccountId)
+              ? transaction.accountId
+              : null,
+
+          destinationAccountId:
+            destinationAccountId &&
+            accessibleAccountIdSet.has(destinationAccountId)
+              ? transaction.destinationAccountId
+              : null,
+        };
+      }),
       pagination: {
         page,
         limit,
@@ -262,6 +283,7 @@ export async function GET(request: Request) {
     );
   }
 }
+
 
 // POST: crear ingreso, gasto o transferencia.
 export async function POST(request: Request) {
